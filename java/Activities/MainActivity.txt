@@ -1,0 +1,178 @@
+package com.example.moviedirectory.Activities;
+
+import android.os.Bundle;
+
+import com.android.volley.Request;
+import com.android.volley.RequestQueue;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.toolbox.JsonObjectRequest;
+import com.android.volley.toolbox.Volley;
+import com.example.moviedirectory.Data.MovieRecyclerViewAdapter;
+import com.example.moviedirectory.Model.Movie;
+import com.example.moviedirectory.R;
+import com.example.moviedirectory.Util.Constants;
+import com.example.moviedirectory.Util.Prefs;
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
+
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
+import android.view.View;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.widget.Button;
+import android.widget.EditText;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class MainActivity extends AppCompatActivity {
+    private RecyclerView recyclerView;
+    private MovieRecyclerViewAdapter movieRecyclerViewAdapter;
+    private List<Movie> movieList;
+    private RequestQueue queue;
+    private AlertDialog.Builder alertDialogBuilder;
+    private AlertDialog Dialog;
+
+
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+
+        queue = Volley.newRequestQueue(this);
+
+        FloatingActionButton fab = findViewById(R.id.fab);
+        fab.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                ShowInputDialog();
+            }
+        });
+
+        recyclerView = (RecyclerView) findViewById(R.id.RecyclerView);
+        recyclerView.setHasFixedSize(true);
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+
+        Prefs prefs = new Prefs(MainActivity.this);
+        String Search = prefs.getSearch();
+
+        movieList = new ArrayList<>();
+
+
+        //getMovies(Search);
+        movieList = getMovies(Search);
+        movieRecyclerViewAdapter = new MovieRecyclerViewAdapter(this, movieList);
+        recyclerView.setAdapter(movieRecyclerViewAdapter);
+        movieRecyclerViewAdapter.notifyDataSetChanged();
+    }
+
+
+    //Get Movies
+    public List<Movie> getMovies(String SearchTerm) {
+        movieList.clear();
+        JsonObjectRequest jsonObjectRequest = new JsonObjectRequest(Request.Method.GET,
+                Constants.URL_LEFT + SearchTerm + Constants.URL_RIGHT + Constants.API_KEY,null, new Response.Listener<JSONObject>() {
+            @Override
+            public void onResponse(JSONObject response)
+            {
+                try
+                {
+                    JSONArray MoviesArray = response.getJSONArray("Search");
+                    for ( int i = 0 ; i < MoviesArray.length() ; i++)
+                    {
+                        JSONObject MovieObj = MoviesArray.getJSONObject(i);
+
+                        Movie movie = new Movie();
+                        movie.setTitle(MovieObj.getString("Title"));
+                        movie.setYear("Year Released: " + MovieObj.getString("Year"));
+                        movie.setImdbId(MovieObj.getString("imdbID"));
+                        movie.setMovieType("Type: " + MovieObj.getString("Type"));
+                        movie.setPoster(MovieObj.getString("Poster"));
+
+                        movieList.add(movie);
+                    }
+
+                    movieRecyclerViewAdapter.notifyDataSetChanged();
+
+                } catch (JSONException e)
+                {
+                    e.printStackTrace();
+                }
+            }
+        }, new Response.ErrorListener() {
+            @Override
+            public void onErrorResponse(VolleyError error)
+            {
+
+            }
+        });
+        queue.add(jsonObjectRequest);
+        return movieList;
+    }
+
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        // Inflate the menu; this adds items to the action bar if it is present.
+        getMenuInflater().inflate(R.menu.menu_main, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        // Handle action bar item clicks here. The action bar will
+        // automatically handle clicks on the Home/Up button, so long
+        // as you specify a parent activity in AndroidManifest.xml.
+        int id = item.getItemId();
+
+        //noinspection SimplifiableIfStatement
+        if (id == R.id.new_search) {
+            ShowInputDialog();
+            //return true;
+        }
+
+        return super.onOptionsItemSelected(item);
+    }
+
+    public void ShowInputDialog()
+    {
+        alertDialogBuilder = new AlertDialog.Builder(this);
+        View view = getLayoutInflater().inflate(R.layout.dialog_view,null);
+        final EditText newSearchEdit = (EditText) view.findViewById(R.id.SearchEdit);
+        Button SubmitButton = (Button) view.findViewById(R.id.SubmitButton);
+
+        alertDialogBuilder.setView(view);
+        Dialog = alertDialogBuilder.create();
+        Dialog.show();
+
+        SubmitButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                Prefs prefs = new Prefs(MainActivity.this);
+                if(!newSearchEdit.getText().toString().isEmpty())
+                {
+                    String search = newSearchEdit.getText().toString();
+                    prefs.setSearch(search);
+                    movieList.clear();
+
+                    getMovies(search);
+
+                    movieRecyclerViewAdapter.notifyDataSetChanged();
+                }
+                Dialog.dismiss();
+            }
+        });
+    }
+}
